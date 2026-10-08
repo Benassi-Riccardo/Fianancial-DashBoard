@@ -1,3 +1,4 @@
+// Dashboard v2 - Transaction Modal + Google Sheets Write
 import React, { useState } from 'react';
 import { KpiCards } from '@/components/dashboard/KpiCards';
 import { BudgetChart } from '@/components/dashboard/BudgetChart';
