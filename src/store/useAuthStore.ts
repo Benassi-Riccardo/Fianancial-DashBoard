@@ -27,10 +27,13 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
 const TOKEN_KEY = 'financeflow_token';
 const USER_KEY = 'financeflow_user';
 
+// Use sessionStorage so the session is cleared automatically when the browser/tab closes
+const storage = sessionStorage;
+
 export const useAuthStore = create<AuthState>((set, get) => {
-  // Initialize from localStorage if present
-  const storedToken = localStorage.getItem(TOKEN_KEY);
-  const storedUserRaw = localStorage.getItem(USER_KEY);
+  // Initialize from sessionStorage (cleared automatically when browser closes)
+  const storedToken = storage.getItem(TOKEN_KEY);
+  const storedUserRaw = storage.getItem(USER_KEY);
   let initialUser: AuthUser | null = null;
   if (storedUserRaw) {
     try {
@@ -41,8 +44,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
   }
 
   const saveAuth = (token: string, user: AuthUser) => {
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    storage.setItem(TOKEN_KEY, token);
+    storage.setItem(USER_KEY, JSON.stringify(user));
     set({
       token,
       user,
@@ -119,8 +122,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     logout: () => {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(USER_KEY);
+      storage.removeItem(TOKEN_KEY);
+      storage.removeItem(USER_KEY);
       // Reset finance data in memory
       try {
         import('@/store/useFinanceStore').then(({ useFinanceStore }) => {
@@ -150,7 +153,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         if (res.ok) {
           const data = await res.json();
           set({ user: data.user, isAuthenticated: true, isLoading: false });
-          localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+          storage.setItem(USER_KEY, JSON.stringify(data.user));
         } else {
           // Token invalid or expired
           get().logout();

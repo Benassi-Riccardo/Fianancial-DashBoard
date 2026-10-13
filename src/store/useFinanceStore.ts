@@ -72,7 +72,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   })),
 
   createTransaction: async (tx) => {
-    const token = localStorage.getItem('financeflow_token');
+    const token = sessionStorage.getItem('financeflow_token');
     const res = await fetch(`${API_BASE}/api/transactions`, {
       method: 'POST',
       headers: {
@@ -95,7 +95,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }));
 
     try {
-      const token = localStorage.getItem('financeflow_token');
+      const token = sessionStorage.getItem('financeflow_token');
       await fetch(`${API_BASE}/api/transactions/${id}`, {
         method: 'DELETE',
         headers: {
@@ -127,7 +127,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   fetchDashboardData: async () => {
     set({ isLoading: true, error: null });
     try {
-      const token = localStorage.getItem('financeflow_token');
+      const token = sessionStorage.getItem('financeflow_token');
       const res = await fetch(`${API_BASE}/api/finances`, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
