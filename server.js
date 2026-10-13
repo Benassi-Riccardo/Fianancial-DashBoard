@@ -513,20 +513,7 @@ async function extractGoogleSheetData() {
 app.get('/api/finances', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
-    let data = await getUserFinances(userId);
-
-    // If new user and has 0 transactions, auto-import from Google Sheet if credentials exist
-    if (data.transactions.length === 0 && process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SPREADSHEET_ID) {
-      try {
-        console.log(`📥 Initializing starter data for user ${req.user.email} from Google Sheet...`);
-        const sheetData = await extractGoogleSheetData();
-        await bulkInsertUserData(userId, sheetData);
-        data = await getUserFinances(userId);
-      } catch (importErr) {
-        console.warn('Google Sheet auto-seed skipped:', importErr.message);
-      }
-    }
-
+    const data = await getUserFinances(userId);
     res.json(data);
   } catch (err) {
     console.error('❌ Error fetching user finances:', err.message);
