@@ -36,6 +36,7 @@ interface FinanceState {
   setSelectedMonth: (month: number) => void;
   setSelectedYear: (year: number) => void;
   fetchDashboardData: () => Promise<void>;
+  resetFinanceData: () => void;
   clearError: () => void;
 }
 
@@ -108,6 +109,18 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
 
   setSelectedMonth: (month) => set({ selectedMonth: month }),
   setSelectedYear: (year) => set({ selectedYear: year }),
+
+  resetFinanceData: () => set({
+    transactions: [],
+    sinkingFunds: [],
+    assets: [],
+    debts: [],
+    settings: FALLBACK_SETTINGS,
+    kpis: {},
+    budgetData: { speso: 0, budget: 1500 },
+    isLoading: true,
+    error: null,
+  }),
 
   clearError: () => set({ error: null }),
 

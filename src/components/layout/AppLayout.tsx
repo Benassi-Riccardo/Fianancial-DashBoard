@@ -92,18 +92,19 @@ import { useAuthStore } from '@/store/useAuthStore';
 
 export function AppLayout() {
   const [currentTab, setCurrentTab] = useState<TabId>('dashboard');
-  const { isLoading: isFinanceLoading, error, fetchDashboardData, clearError } = useFinanceStore();
-  const { isAuthenticated, checkSession, isLoading: isAuthLoading } = useAuthStore();
+  const { isLoading: isFinanceLoading, error, fetchDashboardData, resetFinanceData, clearError } = useFinanceStore();
+  const { user, isAuthenticated, checkSession, isLoading: isAuthLoading } = useAuthStore();
 
   useEffect(() => {
     checkSession();
   }, [checkSession]);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user?.id) {
+      resetFinanceData();
       fetchDashboardData();
     }
-  }, [isAuthenticated, fetchDashboardData]);
+  }, [isAuthenticated, user?.id, fetchDashboardData, resetFinanceData]);
 
   const handleRetry = () => {
     clearError();

@@ -121,6 +121,12 @@ export const useAuthStore = create<AuthState>((set, get) => {
     logout: () => {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
+      // Reset finance data in memory
+      try {
+        import('@/store/useFinanceStore').then(({ useFinanceStore }) => {
+          useFinanceStore.getState().resetFinanceData?.();
+        });
+      } catch {}
       set({
         token: null,
         user: null,
