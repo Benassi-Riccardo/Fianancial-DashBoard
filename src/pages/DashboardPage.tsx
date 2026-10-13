@@ -73,7 +73,7 @@ export default function DashboardPage() {
       setNome('');
       setImporto('');
     } catch (err: any) {
-      setFormError(err.message || 'Errore durante l\'aggiunta su Google Sheets');
+      setFormError(err.message || 'Errore durante il salvataggio della transazione');
     } finally {
       setIsSubmitting(false);
     }
@@ -275,10 +275,10 @@ export default function DashboardPage() {
                   {isSubmitting ? (
                     <>
                       <Loader2 size={18} className="animate-spin" />
-                      <span>Salvataggio su Google...</span>
+                      <span>Salvataggio...</span>
                     </>
                   ) : (
-                    <span>Aggiungi a Google Sheets</span>
+                    <span>Salva Transazione</span>
                   )}
                 </button>
               </div>

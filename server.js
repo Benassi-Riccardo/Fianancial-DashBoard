@@ -287,12 +287,13 @@ function parseSheetDate(val) {
 
 // --- Helper to extract data from Google Sheets ---
 async function extractGoogleSheetData() {
+  try {
     const auth = getAuth();
     const sheets = google.sheets({ version: 'v4', auth });
     const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
 
     if (!spreadsheetId) {
-      return res.status(500).json({ error: 'Missing GOOGLE_SPREADSHEET_ID in .env' });
+      throw new Error('Missing GOOGLE_SPREADSHEET_ID in .env');
     }
 
     // Read worksheets in parallel
