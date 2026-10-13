@@ -5,7 +5,16 @@ import { google } from 'googleapis';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
-import { initDb, findUserByEmail, findUserById, createUser } from './db.js';
+import { 
+  initDb, 
+  findUserByEmail, 
+  findUserById, 
+  createUser, 
+  getUserFinances, 
+  addUserTransaction, 
+  deleteUserTransaction, 
+  bulkInsertUserData 
+} from './db.js';
 
 dotenv.config();
 
@@ -276,9 +285,8 @@ function parseSheetDate(val) {
   return new Date().toISOString();
 }
 
-// --- API Endpoint (Protected) ---
-app.get('/api/finances', requireAuth, async (_req, res) => {
-  try {
+// --- Helper to extract data from Google Sheets ---
+async function extractGoogleSheetData() {
     const auth = getAuth();
     const sheets = google.sheets({ version: 'v4', auth });
     const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
@@ -484,78 +492,96 @@ app.get('/api/finances', requireAuth, async (_req, res) => {
       });
     }
 
-    res.json({
-      kpis: {}, // Frontend calculates KPIs dynamically from arrays
+    return {
+      kpis: {},
       budget,
       transactions,
       sinkingFunds,
       assets,
       debts,
       settings,
-    });
-
+    };
   } catch (err) {
     console.error('❌ Error fetching Google Sheets data:', err.message);
+    throw err;
+  }
+}
+
+// --- Per-User Finance API Endpoints (Protected by JWT) ---
+
+// 1. Get financial data for the authenticated user
+app.get('/api/finances', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    let data = await getUserFinances(userId);
+
+    // If new user and has 0 transactions, auto-import from Google Sheet if credentials exist
+    if (data.transactions.length === 0 && process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SPREADSHEET_ID) {
+      try {
+        console.log(`📥 Initializing starter data for user ${req.user.email} from Google Sheet...`);
+        const sheetData = await extractGoogleSheetData();
+        await bulkInsertUserData(userId, sheetData);
+        data = await getUserFinances(userId);
+      } catch (importErr) {
+        console.warn('Google Sheet auto-seed skipped:', importErr.message);
+      }
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error('❌ Error fetching user finances:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// --- Add New Transaction Endpoint (Protected) ---
+// --- Add New Transaction Endpoint (Per-User DB) ---
 app.post('/api/transactions', requireAuth, async (req, res) => {
   try {
+    const userId = req.user.id;
     const { nome, categoria, importo, data, tipo } = req.body;
 
     if (!categoria || importo === undefined) {
       return res.status(400).json({ error: 'Categoria e importo sono obbligatori.' });
     }
 
-    const auth = getAuth();
-    const sheets = google.sheets({ version: 'v4', auth });
-    const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
-
-    if (!spreadsheetId) {
-      return res.status(500).json({ error: 'Missing GOOGLE_SPREADSHEET_ID in .env' });
-    }
-
-    // Format date as DD/MM/YYYY for Italian locale in Google Sheets
-    let dateFormatted = '';
-    if (data) {
-      const d = new Date(data);
-      if (!isNaN(d.getTime())) {
-        const day = String(d.getUTCDate()).padStart(2, '0');
-        const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-        const year = d.getUTCFullYear();
-        dateFormatted = `${day}/${month}/${year}`;
-      } else {
-        dateFormatted = data;
-      }
-    } else {
-      const now = new Date();
-      const day = String(now.getDate()).padStart(2, '0');
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      dateFormatted = `${day}/${month}/${now.getFullYear()}`;
-    }
-
-    const rowValue = [
-      nome || '',
-      categoria || '',
-      importo,
-      dateFormatted,
-      tipo || 'Spesa'
-    ];
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range: 'Lista Movimenti!A:E',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [rowValue]
-      }
+    const newTx = await addUserTransaction(userId, {
+      nome: nome || categoria,
+      categoria,
+      importo: parseFloat(importo),
+      data,
+      tipo: tipo || 'Spesa'
     });
 
-    res.json({ success: true, message: 'Transazione aggiunta con successo su Google Sheets' });
+    res.status(201).json({ success: true, transaction: newTx });
   } catch (err) {
-    console.error('❌ Error adding transaction to Google Sheets:', err.message);
+    console.error('❌ Error adding user transaction:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Delete Transaction Endpoint (Per-User DB) ---
+app.delete('/api/transactions/:id', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+    await deleteUserTransaction(userId, id);
+    res.json({ success: true, message: 'Transazione eliminata' });
+  } catch (err) {
+    console.error('❌ Error deleting user transaction:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Import from Google Sheet for current user ---
+app.post('/api/finances/import-sheet', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const sheetData = await extractGoogleSheetData();
+    await bulkInsertUserData(userId, sheetData);
+    const updated = await getUserFinances(userId);
+    res.json({ success: true, message: 'Dati importati con successo dal foglio Google!', data: updated });
+  } catch (err) {
+    console.error('❌ Error importing sheet:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

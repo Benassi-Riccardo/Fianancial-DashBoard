@@ -22,3 +22,8 @@ scratch*
 
 # Local fallback user storage
 .data/
+
+# Sensitive credentials & secret files
+DB Credentials.txt
+client_secret*.json
+*.json.secret

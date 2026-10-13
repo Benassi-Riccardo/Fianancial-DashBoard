@@ -87,9 +87,24 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     await get().fetchDashboardData();
   },
 
-  deleteTransaction: (id) => set((state) => ({
-    transactions: state.transactions.filter(t => t.id !== id)
-  })),
+  deleteTransaction: async (id) => {
+    // Optimistic local update
+    set((state) => ({
+      transactions: state.transactions.filter((t) => t.id !== id),
+    }));
+
+    try {
+      const token = localStorage.getItem('financeflow_token');
+      await fetch(`${API_BASE}/api/transactions/${id}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+    } catch (e) {
+      console.error('Failed to delete transaction on server:', e);
+    }
+  },
 
   setSelectedMonth: (month) => set({ selectedMonth: month }),
   setSelectedYear: (year) => set({ selectedYear: year }),
