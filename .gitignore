@@ -20,4 +20,5 @@ dist/
 # Scratch / Temporary scripts
 scratch*
 
-
+# Local fallback user storage
+.data/

@@ -1,6 +1,7 @@
 import React from 'react';
-import { LayoutDashboard, CalendarDays, Target, PieChart, Receipt, Settings } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Target, PieChart, Receipt, Settings, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/store/useAuthStore';
 
 export type TabId = 'dashboard' | 'annual' | 'sinking' | 'networth' | 'transactions' | 'settings';
 
@@ -10,6 +11,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ currentTab, onTabChange }: SidebarProps) {
+  const { user, logout } = useAuthStore();
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'annual', label: 'Visione Annuale', icon: CalendarDays },
@@ -18,6 +20,12 @@ export function Sidebar({ currentTab, onTabChange }: SidebarProps) {
     { id: 'transactions', label: 'Transazioni', icon: Receipt },
     { id: 'settings', label: 'Impostazioni', icon: Settings },
   ] as const;
+
+  const initials = user?.name
+    ? user.name.slice(0, 2).toUpperCase()
+    : user?.email
+    ? user.email.slice(0, 2).toUpperCase()
+    : 'US';
 
   return (
     <aside className="w-64 border-r border-blue-100/50 bg-white flex flex-col h-screen sticky top-0">
@@ -37,7 +45,7 @@ export function Sidebar({ currentTab, onTabChange }: SidebarProps) {
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                "w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200",
+                "w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 cursor-pointer",
                 isActive 
                   ? "bg-sky-50 text-sky-600 font-medium" 
                   : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
@@ -51,14 +59,31 @@ export function Sidebar({ currentTab, onTabChange }: SidebarProps) {
       </nav>
       
       <div className="p-4 border-t border-slate-200">
-        <div className="flex items-center space-x-3 px-4 py-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm">
-            US
+        <div className="flex items-center justify-between px-2 py-1">
+          <div className="flex items-center space-x-3 min-w-0">
+            {user?.picture ? (
+              <img src={user.picture} alt={user.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                {initials}
+              </div>
+            )}
+            <div className="flex flex-col text-left min-w-0">
+              <span className="text-xs font-semibold text-slate-900 truncate">
+                {user?.name || user?.email || 'User'}
+              </span>
+              <span className="text-[11px] text-slate-500 truncate">
+                {user?.email || 'Authenticated'}
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col text-left">
-            <span className="text-sm font-medium text-slate-900">User</span>
-            <span className="text-xs text-slate-500">Free Plan</span>
-          </div>
+          <button
+            onClick={logout}
+            title="Esci dall'account"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0 cursor-pointer ml-1"
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </div>
     </aside>

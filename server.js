@@ -2,14 +2,195 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { google } from 'googleapis';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
+import { initDb, findUserByEmail, findUserById, createUser } from './db.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const JWT_SECRET = process.env.JWT_SECRET || 'financeflow_jwt_secret_dev_key_2026';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const googleOAuthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+
+// Initialize DB
+initDb().catch((err) => console.error('Database init error:', err));
 
 app.use(cors());
 app.use(express.json());
+
+// --- Authentication Helper & Middleware ---
+function generateToken(user) {
+  return jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
+    },
+    JWT_SECRET,
+    { expiresIn: '30d' }
+  );
+}
+
+function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Accesso non autorizzato. Effettua il login.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Sessione scaduta o non valida. Effettua nuovamente il login.' });
+  }
+}
+
+// --- Auth Routes ---
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email e password sono obbligatori.' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'La password deve contenere almeno 6 caratteri.' });
+    }
+
+    const existing = await findUserByEmail(email);
+    if (existing) {
+      return res.status(409).json({ error: 'Un account con questa email esiste già.' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = await createUser({
+      email,
+      passwordHash,
+      name: name || email.split('@')[0],
+      provider: 'local',
+    });
+
+    const token = generateToken(user);
+    res.status(201).json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        picture: user.picture,
+      },
+    });
+  } catch (err) {
+    console.error('❌ Register error:', err);
+    res.status(500).json({ error: 'Errore durante la registrazione.' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Inserisci email e password.' });
+    }
+
+    const user = await findUserByEmail(email);
+    if (!user || !user.password_hash) {
+      return res.status(401).json({ error: 'Credenziali non valide.' });
+    }
+
+    const match = await bcrypt.compare(password, user.password_hash);
+    if (!match) {
+      return res.status(401).json({ error: 'Credenziali non valide.' });
+    }
+
+    const token = generateToken(user);
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        picture: user.picture,
+      },
+    });
+  } catch (err) {
+    console.error('❌ Login error:', err);
+    res.status(500).json({ error: 'Errore durante il login.' });
+  }
+});
+
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ error: 'Token Google mancante.' });
+    }
+
+    let ticket;
+    try {
+      ticket = await googleOAuthClient.verifyIdToken({
+        idToken: credential,
+        audience: GOOGLE_CLIENT_ID || undefined,
+      });
+    } catch (verifyErr) {
+      console.error('Google token verification failed:', verifyErr.message);
+      return res.status(401).json({ error: 'Verifica Google non riuscita. Token non valido o scaduto.' });
+    }
+
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) {
+      return res.status(400).json({ error: 'Impossibile recuperare il profilo Google.' });
+    }
+
+    let user = await findUserByEmail(payload.email);
+    if (!user) {
+      user = await createUser({
+        email: payload.email,
+        name: payload.name || payload.email.split('@')[0],
+        picture: payload.picture || '',
+        provider: 'google',
+      });
+    }
+
+    const token = generateToken(user);
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        picture: user.picture,
+      },
+    });
+  } catch (err) {
+    console.error('❌ Google auth error:', err);
+    res.status(500).json({ error: 'Errore durante l\'accesso con Google.' });
+  }
+});
+
+app.get('/api/auth/me', requireAuth, async (req, res) => {
+  try {
+    const user = await findUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Utente non trovato.' });
+    }
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        picture: user.picture,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Errore interno.' });
+  }
+});
 
 // --- Google Sheets Auth ---
 function getAuth() {
@@ -95,8 +276,8 @@ function parseSheetDate(val) {
   return new Date().toISOString();
 }
 
-// --- API Endpoint ---
-app.get('/api/finances', async (_req, res) => {
+// --- API Endpoint (Protected) ---
+app.get('/api/finances', requireAuth, async (_req, res) => {
   try {
     const auth = getAuth();
     const sheets = google.sheets({ version: 'v4', auth });
@@ -319,8 +500,8 @@ app.get('/api/finances', async (_req, res) => {
   }
 });
 
-// --- Add New Transaction Endpoint ---
-app.post('/api/transactions', async (req, res) => {
+// --- Add New Transaction Endpoint (Protected) ---
+app.post('/api/transactions', requireAuth, async (req, res) => {
   try {
     const { nome, categoria, importo, data, tipo } = req.body;
 

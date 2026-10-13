@@ -71,9 +71,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   })),
 
   createTransaction: async (tx) => {
+    const token = localStorage.getItem('financeflow_token');
     const res = await fetch(`${API_BASE}/api/transactions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(tx)
     });
     if (!res.ok) {
@@ -95,7 +99,12 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   fetchDashboardData: async () => {
     set({ isLoading: true, error: null });
     try {
-      const res = await fetch(`${API_BASE}/api/finances`);
+      const token = localStorage.getItem('financeflow_token');
+      const res = await fetch(`${API_BASE}/api/finances`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `Server returned ${res.status}`);

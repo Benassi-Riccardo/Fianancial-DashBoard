@@ -88,13 +88,22 @@ function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => voi
   );
 }
 
+import { useAuthStore } from '@/store/useAuthStore';
+
 export function AppLayout() {
   const [currentTab, setCurrentTab] = useState<TabId>('dashboard');
-  const { isLoading, error, fetchDashboardData, clearError } = useFinanceStore();
+  const { isLoading: isFinanceLoading, error, fetchDashboardData, clearError } = useFinanceStore();
+  const { isAuthenticated, checkSession, isLoading: isAuthLoading } = useAuthStore();
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    checkSession();
+  }, [checkSession]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchDashboardData();
+    }
+  }, [isAuthenticated, fetchDashboardData]);
 
   const handleRetry = () => {
     clearError();
@@ -102,7 +111,7 @@ export function AppLayout() {
   };
 
   const renderContent = () => {
-    if (isLoading) {
+    if (isFinanceLoading) {
       return <SkeletonLoader />;
     }
 
