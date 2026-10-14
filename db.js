@@ -206,6 +206,67 @@ export async function initUserSettings(userId) {
   }
 }
 
+export async function updateUserSettings(userId, { budgetMensile, liquiditaIniziale, categorie }) {
+  const uId = String(userId);
+  const budget = budgetMensile !== undefined ? parseFloat(budgetMensile) : 1500;
+  const liquidita = liquiditaIniziale !== undefined ? parseFloat(liquiditaIniziale) : 5000;
+  const cats = Array.isArray(categorie) ? categorie : DEFAULT_CATEGORIES;
+
+  if (pool) {
+    const res = await pool.query(
+      `INSERT INTO user_settings (user_id, budget_mensile, liquidita_iniziale, categorie)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id) DO UPDATE SET
+         budget_mensile = EXCLUDED.budget_mensile,
+         liquidita_iniziale = EXCLUDED.liquidita_iniziale,
+         categorie = EXCLUDED.categorie
+       RETURNING *`,
+      [uId, budget, liquidita, JSON.stringify(cats)]
+    );
+
+    const row = res.rows[0];
+    const savedCats = (typeof row?.categorie === 'string'
+      ? JSON.parse(row.categorie)
+      : row?.categorie) || cats;
+
+    return {
+      budgetMensile: parseFloat(row?.budget_mensile || budget),
+      liquiditaIniziale: parseFloat(row?.liquidita_iniziale || liquidita),
+      categorie: savedCats,
+    };
+  }
+
+  ensureFallbackStorage();
+  const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+  const allData = JSON.parse(raw || '{}');
+  if (!allData[uId]) {
+    allData[uId] = {
+      transactions: [],
+      sinkingFunds: [],
+      assets: [],
+      debts: [],
+      settings: { liquiditaIniziale: liquidita, budgetMensile: budget, categorie: cats },
+      budget: { speso: 0, budget },
+    };
+  } else {
+    allData[uId].settings = {
+      liquiditaIniziale: liquidita,
+      budgetMensile: budget,
+      categorie: cats,
+    };
+    if (allData[uId].budget) {
+      allData[uId].budget.budget = budget;
+    }
+  }
+  fs.writeFileSync(DATA_FILE, JSON.stringify(allData, null, 2), 'utf-8');
+
+  return {
+    budgetMensile: budget,
+    liquiditaIniziale: liquidita,
+    categorie: cats,
+  };
+}
+
 export async function getUserFinances(userId) {
   const uId = String(userId);
 

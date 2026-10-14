@@ -13,7 +13,8 @@ import {
   getUserFinances, 
   addUserTransaction, 
   deleteUserTransaction, 
-  bulkInsertUserData 
+  bulkInsertUserData,
+  updateUserSettings
 } from './db.js';
 
 dotenv.config();
@@ -573,6 +574,32 @@ app.post('/api/finances/import-sheet', requireAuth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// --- Update Settings Endpoint (Per-User DB) ---
+const handleUpdateSettings = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { budgetMensile, liquiditaIniziale, categorie } = req.body;
+
+    if (budgetMensile === undefined && liquiditaIniziale === undefined && !categorie) {
+      return res.status(400).json({ error: 'Nessun dato fornito per l\'aggiornamento.' });
+    }
+
+    const updatedSettings = await updateUserSettings(userId, {
+      budgetMensile,
+      liquiditaIniziale,
+      categorie,
+    });
+
+    res.json({ success: true, settings: updatedSettings });
+  } catch (err) {
+    console.error('❌ Error updating user settings:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.put('/api/settings', requireAuth, handleUpdateSettings);
+app.post('/api/settings', requireAuth, handleUpdateSettings);
 
 // --- Health Check ---
 app.get('/api/health', (_req, res) => {

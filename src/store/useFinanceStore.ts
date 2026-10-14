@@ -36,6 +36,7 @@ interface FinanceState {
   setSelectedMonth: (month: number) => void;
   setSelectedYear: (year: number) => void;
   fetchDashboardData: () => Promise<void>;
+  updateSettings: (newSettings: Settings) => Promise<void>;
   resetFinanceData: () => void;
   clearError: () => void;
 }
@@ -109,6 +110,33 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
 
   setSelectedMonth: (month) => set({ selectedMonth: month }),
   setSelectedYear: (year) => set({ selectedYear: year }),
+
+  updateSettings: async (newSettings) => {
+    const token = sessionStorage.getItem('financeflow_token');
+    const res = await fetch(`${API_BASE}/api/settings`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(newSettings),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Errore durante l\'aggiornamento delle impostazioni');
+    }
+
+    const data = await res.json();
+    const saved = data.settings || newSettings;
+    set((state) => ({
+      settings: saved,
+      budgetData: {
+        ...state.budgetData,
+        budget: saved.budgetMensile,
+      },
+    }));
+  },
 
   resetFinanceData: () => set({
     transactions: [],
