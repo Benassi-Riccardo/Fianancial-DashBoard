@@ -27,3 +27,5 @@ scratch*
 DB Credentials.txt
 client_secret*.json
 *.json.secret
+*recovery-codes*
+*-codes.txt

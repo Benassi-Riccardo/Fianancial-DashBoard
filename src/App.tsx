@@ -4,6 +4,7 @@ import { AuthPage } from '@/pages/AuthPage';
 import { useAuthStore } from '@/store/useAuthStore';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { Loader2 } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -31,13 +32,16 @@ function MainContent() {
 }
 
 export default function App() {
-  if (GOOGLE_CLIENT_ID) {
-    return (
-      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+  return (
+    <>
+      {GOOGLE_CLIENT_ID ? (
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+          <MainContent />
+        </GoogleOAuthProvider>
+      ) : (
         <MainContent />
-      </GoogleOAuthProvider>
-    );
-  }
-
-  return <MainContent />;
+      )}
+      <Analytics />
+    </>
+  );
 }
