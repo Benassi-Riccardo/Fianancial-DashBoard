@@ -56,7 +56,8 @@ const FALLBACK_SETTINGS: Settings = {
   ]
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
+const RAW_API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
+const API_BASE = RAW_API_BASE.replace(/\/+$/, '');
 
 export const useFinanceStore = create<FinanceState>((set, get) => ({
   transactions: [],

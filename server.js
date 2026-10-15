@@ -604,8 +604,21 @@ const handleUpdateSettings = async (req, res) => {
 app.put('/api/settings', requireAuth, handleUpdateSettings);
 app.post('/api/settings', requireAuth, handleUpdateSettings);
 
-// --- Sinking Funds Endpoints (Per-User DB) ---
-app.post('/api/sinking-funds', requireAuth, async (req, res) => {
+// --- Sinking Funds Router (Per-User DB) ---
+const sinkingFundRouter = express.Router();
+
+// GET all sinking funds for authenticated user
+sinkingFundRouter.get('/', requireAuth, async (req, res) => {
+  try {
+    const finances = await getUserFinances(req.user.id);
+    res.json({ success: true, sinkingFunds: finances.sinkingFunds || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST create new sinking fund
+sinkingFundRouter.post('/', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const { attivita, obiettivo, dataScadenza, monthlyAllocation, initialDeposit } = req.body;
@@ -629,7 +642,8 @@ app.post('/api/sinking-funds', requireAuth, async (req, res) => {
   }
 });
 
-app.delete('/api/sinking-funds/:id', requireAuth, async (req, res) => {
+// DELETE sinking fund by ID
+sinkingFundRouter.delete('/:id', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
@@ -641,7 +655,8 @@ app.delete('/api/sinking-funds/:id', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/sinking-funds/:id/action', requireAuth, async (req, res) => {
+// POST deposit or withdraw from sinking fund
+sinkingFundRouter.post('/:id/action', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
@@ -659,9 +674,19 @@ app.post('/api/sinking-funds/:id/action', requireAuth, async (req, res) => {
   }
 });
 
+// Mount on multiple path variants to guarantee compatibility across proxy/URL setups
+app.use('/api/sinking-funds', sinkingFundRouter);
+app.use('/api/sinkingfunds', sinkingFundRouter);
+app.use('/sinking-funds', sinkingFundRouter);
+
 // --- Health Check ---
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    version: '1.2.1',
+    endpoints: ['/api/finances', '/api/transactions', '/api/settings', '/api/sinking-funds'],
+    timestamp: new Date().toISOString() 
+  });
 });
 
 app.listen(PORT, () => {
