@@ -105,6 +105,8 @@ export async function initDb() {
         CREATE INDEX IF NOT EXISTS idx_sinking_funds_user ON sinking_funds(user_id);
         CREATE INDEX IF NOT EXISTS idx_assets_user ON assets(user_id);
         CREATE INDEX IF NOT EXISTS idx_debts_user ON debts(user_id);
+
+        ALTER TABLE sinking_funds ADD COLUMN IF NOT EXISTS monthly_allocation NUMERIC DEFAULT 0;
       `);
 
       console.log('✅ Supabase PostgreSQL connected and all relational tables verified.');
@@ -310,6 +312,7 @@ export async function getUserFinances(userId) {
       risparmioMensile: parseFloat(row.risparmio_mensile || 0),
       spese: parseFloat(row.spese || 0),
       dataScadenza: row.data_scadenza ? new Date(row.data_scadenza).toISOString() : '',
+      monthlyAllocation: parseFloat(row.monthly_allocation || 0),
     }));
 
     const assets = assetRes.rows.map((row) => ({
@@ -426,6 +429,164 @@ export async function deleteUserTransaction(userId, transactionId) {
     fs.writeFileSync(DATA_FILE, JSON.stringify(allData, null, 2), 'utf-8');
   }
   return true;
+}
+
+export async function addSinkingFund(userId, { attivita, obiettivo, dataScadenza, monthlyAllocation = 0, initialDeposit = 0 }) {
+  const uId = String(userId);
+  const id = Date.now().toString() + Math.random().toString(36).substring(2, 7);
+  const target = parseFloat(obiettivo);
+  const deposit = parseFloat(initialDeposit || 0);
+  const alloc = parseFloat(monthlyAllocation || 0);
+  const dateIso = dataScadenza ? new Date(dataScadenza).toISOString() : null;
+  const stato = deposit >= target ? 'Completata' : 'In corso';
+
+  if (pool) {
+    const res = await pool.query(
+      `INSERT INTO sinking_funds (id, user_id, attivita, stato, obiettivo, risparmio_mensile, spese, data_scadenza, monthly_allocation)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [id, uId, attivita, stato, target, deposit, 0, dateIso, alloc]
+    );
+    const r = res.rows[0];
+    return {
+      id: r.id,
+      attivita: r.attivita,
+      stato: r.stato,
+      obiettivo: parseFloat(r.obiettivo),
+      risparmioMensile: parseFloat(r.risparmio_mensile || 0),
+      spese: parseFloat(r.spese || 0),
+      dataScadenza: r.data_scadenza ? new Date(r.data_scadenza).toISOString() : '',
+      monthlyAllocation: parseFloat(r.monthly_allocation || 0),
+    };
+  }
+
+  ensureFallbackStorage();
+  const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+  const allData = JSON.parse(raw || '{}');
+  if (!allData[uId]) allData[uId] = {};
+  if (!allData[uId].sinkingFunds) allData[uId].sinkingFunds = [];
+
+  const newFund = {
+    id,
+    attivita,
+    stato,
+    obiettivo: target,
+    risparmioMensile: deposit,
+    spese: 0,
+    dataScadenza: dateIso || '',
+    monthlyAllocation: alloc,
+  };
+  allData[uId].sinkingFunds.push(newFund);
+  fs.writeFileSync(DATA_FILE, JSON.stringify(allData, null, 2), 'utf-8');
+  return newFund;
+}
+
+export async function deleteSinkingFund(userId, fundId) {
+  const uId = String(userId);
+  if (pool) {
+    await pool.query('DELETE FROM sinking_funds WHERE id = $1 AND user_id = $2', [fundId, uId]);
+    return true;
+  }
+
+  ensureFallbackStorage();
+  const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+  const allData = JSON.parse(raw || '{}');
+  if (allData[uId]?.sinkingFunds) {
+    allData[uId].sinkingFunds = allData[uId].sinkingFunds.filter((f) => String(f.id) !== String(fundId));
+    fs.writeFileSync(DATA_FILE, JSON.stringify(allData, null, 2), 'utf-8');
+  }
+  return true;
+}
+
+export async function transactSinkingFund(userId, fundId, { type, amount }) {
+  const uId = String(userId);
+  const amt = parseFloat(amount);
+  if (isNaN(amt) || amt <= 0) {
+    throw new Error('Importo non valido.');
+  }
+
+  if (pool) {
+    const res = await pool.query('SELECT * FROM sinking_funds WHERE id = $1 AND user_id = $2', [fundId, uId]);
+    if (res.rows.length === 0) {
+      throw new Error('Fondo di accantonamento non trovato.');
+    }
+
+    const fund = res.rows[0];
+    let risparmio = parseFloat(fund.risparmio_mensile || 0);
+    let spese = parseFloat(fund.spese || 0);
+    const obiettivo = parseFloat(fund.obiettivo);
+
+    if (type === 'deposit') {
+      risparmio += amt;
+    } else if (type === 'withdraw') {
+      const currentBalance = risparmio - spese;
+      if (amt > currentBalance) {
+        throw new Error(`Fondi insufficienti. Saldo disponibile: €${currentBalance.toFixed(2)}`);
+      }
+      spese += amt;
+    } else {
+      throw new Error('Tipo operazione non valido.');
+    }
+
+    const currentBalance = risparmio - spese;
+    const nuovoStato = currentBalance >= obiettivo ? 'Completata' : 'In corso';
+
+    const updateRes = await pool.query(
+      `UPDATE sinking_funds 
+       SET risparmio_mensile = $1, spese = $2, stato = $3 
+       WHERE id = $4 AND user_id = $5 
+       RETURNING *`,
+      [risparmio, spese, nuovoStato, fundId, uId]
+    );
+
+    const r = updateRes.rows[0];
+    return {
+      id: r.id,
+      attivita: r.attivita,
+      stato: r.stato,
+      obiettivo: parseFloat(r.obiettivo),
+      risparmioMensile: parseFloat(r.risparmio_mensile || 0),
+      spese: parseFloat(r.spese || 0),
+      dataScadenza: r.data_scadenza ? new Date(r.data_scadenza).toISOString() : '',
+      monthlyAllocation: parseFloat(r.monthly_allocation || 0),
+    };
+  }
+
+  ensureFallbackStorage();
+  const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+  const allData = JSON.parse(raw || '{}');
+  if (!allData[uId]?.sinkingFunds) {
+    throw new Error('Fondo di accantonamento non trovato.');
+  }
+
+  const fundIndex = allData[uId].sinkingFunds.findIndex((f) => String(f.id) === String(fundId));
+  if (fundIndex === -1) {
+    throw new Error('Fondo di accantonamento non trovato.');
+  }
+
+  const fund = allData[uId].sinkingFunds[fundIndex];
+  let risparmio = parseFloat(fund.risparmioMensile || 0);
+  let spese = parseFloat(fund.spese || 0);
+  const obiettivo = parseFloat(fund.obiettivo);
+
+  if (type === 'deposit') {
+    risparmio += amt;
+  } else if (type === 'withdraw') {
+    const currentBalance = risparmio - spese;
+    if (amt > currentBalance) {
+      throw new Error(`Fondi insufficienti. Saldo disponibile: €${currentBalance.toFixed(2)}`);
+    }
+    spese += amt;
+  } else {
+    throw new Error('Tipo operazione non valido.');
+  }
+
+  fund.risparmioMensile = risparmio;
+  fund.spese = spese;
+  fund.stato = (risparmio - spese) >= obiettivo ? 'Completata' : 'In corso';
+
+  fs.writeFileSync(DATA_FILE, JSON.stringify(allData, null, 2), 'utf-8');
+  return fund;
 }
 
 export async function bulkInsertUserData(userId, { transactions = [], sinkingFunds = [], assets = [], debts = [], settings = null }) {

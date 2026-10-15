@@ -12,11 +12,13 @@ export interface Transaction {
 export interface SinkingFund {
   id: string;
   attivita: string;
-  stato: 'In corso' | 'Completata';
+  stato: 'In corso' | 'Completata' | string;
   obiettivo: number;
   risparmioMensile: number;
   spese: number;
   dataScadenza: string; // ISO String
+  monthlyAllocation?: number;
+  currentAmount?: number;
 }
 
 export interface Asset {

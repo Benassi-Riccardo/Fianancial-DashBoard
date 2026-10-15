@@ -37,6 +37,9 @@ interface FinanceState {
   setSelectedYear: (year: number) => void;
   fetchDashboardData: () => Promise<void>;
   updateSettings: (newSettings: Settings) => Promise<void>;
+  createSinkingFund: (fund: { attivita: string; obiettivo: number; dataScadenza?: string; monthlyAllocation?: number; initialDeposit?: number }) => Promise<void>;
+  deleteSinkingFund: (id: string) => Promise<void>;
+  transactSinkingFund: (id: string, action: { type: 'deposit' | 'withdraw'; amount: number }) => Promise<void>;
   resetFinanceData: () => void;
   clearError: () => void;
 }
@@ -136,6 +139,61 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         budget: saved.budgetMensile,
       },
     }));
+  },
+
+  createSinkingFund: async (fund) => {
+    const token = sessionStorage.getItem('financeflow_token');
+    const res = await fetch(`${API_BASE}/api/sinking-funds`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(fund),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Errore durante la creazione del fondo');
+    }
+    await get().fetchDashboardData();
+  },
+
+  deleteSinkingFund: async (id) => {
+    // Optimistic local update
+    set((state) => ({
+      sinkingFunds: state.sinkingFunds.filter((f) => f.id !== id),
+    }));
+
+    try {
+      const token = sessionStorage.getItem('financeflow_token');
+      await fetch(`${API_BASE}/api/sinking-funds/${id}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      await get().fetchDashboardData();
+    } catch (e) {
+      console.error('Failed to delete sinking fund:', e);
+      await get().fetchDashboardData();
+    }
+  },
+
+  transactSinkingFund: async (id, action) => {
+    const token = sessionStorage.getItem('financeflow_token');
+    const res = await fetch(`${API_BASE}/api/sinking-funds/${id}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(action),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Errore durante l\'aggiornamento del fondo');
+    }
+    await get().fetchDashboardData();
   },
 
   resetFinanceData: () => set({

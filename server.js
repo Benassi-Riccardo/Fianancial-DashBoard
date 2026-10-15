@@ -14,7 +14,10 @@ import {
   addUserTransaction, 
   deleteUserTransaction, 
   bulkInsertUserData,
-  updateUserSettings
+  updateUserSettings,
+  addSinkingFund,
+  deleteSinkingFund,
+  transactSinkingFund
 } from './db.js';
 
 dotenv.config();
@@ -600,6 +603,61 @@ const handleUpdateSettings = async (req, res) => {
 
 app.put('/api/settings', requireAuth, handleUpdateSettings);
 app.post('/api/settings', requireAuth, handleUpdateSettings);
+
+// --- Sinking Funds Endpoints (Per-User DB) ---
+app.post('/api/sinking-funds', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { attivita, obiettivo, dataScadenza, monthlyAllocation, initialDeposit } = req.body;
+
+    if (!attivita || !obiettivo) {
+      return res.status(400).json({ error: 'Nome del fondo e obiettivo sono obbligatori.' });
+    }
+
+    const fund = await addSinkingFund(userId, {
+      attivita,
+      obiettivo,
+      dataScadenza,
+      monthlyAllocation,
+      initialDeposit,
+    });
+
+    res.status(201).json({ success: true, fund });
+  } catch (err) {
+    console.error('❌ Error creating sinking fund:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/sinking-funds/:id', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+    await deleteSinkingFund(userId, id);
+    res.json({ success: true, message: 'Fondo di accantonamento eliminato.' });
+  } catch (err) {
+    console.error('❌ Error deleting sinking fund:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/sinking-funds/:id/action', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+    const { type, amount } = req.body;
+
+    if (!type || amount === undefined) {
+      return res.status(400).json({ error: 'Tipo operazione e importo sono obbligatori.' });
+    }
+
+    const updatedFund = await transactSinkingFund(userId, id, { type, amount });
+    res.json({ success: true, fund: updatedFund });
+  } catch (err) {
+    console.error('❌ Error updating sinking fund balance:', err.message);
+    res.status(400).json({ error: err.message });
+  }
+});
 
 // --- Health Check ---
 app.get('/api/health', (_req, res) => {
