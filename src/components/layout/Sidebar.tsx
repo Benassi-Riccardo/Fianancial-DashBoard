@@ -3,6 +3,8 @@ import { LayoutDashboard, CalendarDays, Target, PieChart, Receipt, Settings, Log
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/useAuthStore';
 
+import monogramLogo from '@/FinanceFlow-Monogram_logo.jpg';
+
 export type TabId = 'dashboard' | 'annual' | 'sinking' | 'networth' | 'transactions' | 'settings';
 
 interface SidebarProps {
@@ -29,10 +31,18 @@ export function Sidebar({ currentTab, onTabChange }: SidebarProps) {
 
   return (
     <aside className="w-64 border-r border-blue-100/50 bg-white flex flex-col h-screen sticky top-0">
-      <div className="p-6">
-        <h1 className="text-xl font-bold bg-gradient-to-r from-sky-600 to-blue-600 bg-clip-text text-transparent">
-          FinanceFlow
-        </h1>
+      <div className="p-5 flex items-center gap-3 border-b border-blue-50/80">
+        <img 
+          src={monogramLogo} 
+          alt="FinanceFlow Logo" 
+          className="h-10 w-10 object-contain rounded-xl border border-sky-100 bg-white shadow-xs" 
+        />
+        <div>
+          <h1 className="text-lg font-bold bg-gradient-to-r from-sky-600 to-blue-600 bg-clip-text text-transparent leading-none">
+            FinanceFlow
+          </h1>
+          <p className="text-[10px] text-slate-400 font-medium mt-1">Smart Finances</p>
+        </div>
       </div>
       
       <nav className="flex-1 px-4 space-y-2 overflow-y-auto">

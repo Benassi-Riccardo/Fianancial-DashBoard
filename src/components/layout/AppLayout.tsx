@@ -89,8 +89,11 @@ function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => voi
 }
 
 import { useAuthStore } from '@/store/useAuthStore';
+import { Header } from './Header';
 
 export function AppLayout() {
+  const [isScrolled, setIsScrolled] = React.useState(false);
+  const mainRef = React.useRef<HTMLElement>(null);
   const { activeTab, setActiveTab, isLoading: isFinanceLoading, error, fetchDashboardData, resetFinanceData, clearError } = useFinanceStore();
   const { user, isAuthenticated, checkSession, isLoading: isAuthLoading } = useAuthStore();
 
@@ -108,6 +111,10 @@ export function AppLayout() {
   const handleRetry = () => {
     clearError();
     fetchDashboardData();
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
+    setIsScrolled(e.currentTarget.scrollTop > 15);
   };
 
   const renderContent = () => {
@@ -136,9 +143,16 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen bg-blue-50 text-slate-900 selection:bg-sky-500/30">
       <Sidebar currentTab={activeTab} onTabChange={setActiveTab} />
-      <main className="flex-1 overflow-y-auto">
-        {error && <ErrorBanner message={error} onRetry={handleRetry} />}
-        {renderContent()}
+      <main 
+        ref={mainRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto flex flex-col"
+      >
+        <Header isScrolled={isScrolled} />
+        <div className="flex-1">
+          {error && <ErrorBanner message={error} onRetry={handleRetry} />}
+          {renderContent()}
+        </div>
       </main>
     </div>
   );

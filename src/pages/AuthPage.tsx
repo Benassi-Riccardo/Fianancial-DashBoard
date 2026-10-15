@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { GoogleLogin } from '@react-oauth/google';
 import { Lock, Mail, User, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
+import monogramLogo from '@/FinanceFlow-Monogram_logo.jpg';
 
 interface AuthPageProps {
   initialMode?: 'login' | 'signup';
@@ -74,8 +75,12 @@ export function AuthPage({ initialMode = 'login' }: AuthPageProps) {
       <div className="w-full max-w-md">
         {/* Brand Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-sky-500 to-blue-600 shadow-lg shadow-sky-500/25 mb-4">
-            <span className="text-2xl font-black text-white tracking-wider">FF</span>
+          <div className="inline-flex items-center justify-center mb-4">
+            <img 
+              src={monogramLogo} 
+              alt="FinanceFlow Logo" 
+              className="w-16 h-16 object-contain rounded-2xl shadow-lg shadow-sky-500/20 border border-sky-100 bg-white p-1" 
+            />
           </div>
           <h1 className="text-3xl font-extrabold bg-gradient-to-r from-sky-600 to-blue-600 bg-clip-text text-transparent">
             FinanceFlow
