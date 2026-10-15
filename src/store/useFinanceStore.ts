@@ -115,8 +115,10 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
+      await get().fetchDashboardData();
     } catch (e) {
       console.error('Failed to delete transaction on server:', e);
+      await get().fetchDashboardData();
     }
   },
 

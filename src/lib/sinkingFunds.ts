@@ -1,4 +1,18 @@
-import { SinkingFund } from '@/types/finance';
+import { SinkingFund, Transaction } from '@/types/finance';
+
+/**
+ * Checks if a transaction represents a deposit into a sinking fund
+ */
+export function isSinkingFundDeposit(t: Transaction): boolean {
+  return t.tipo === 'Spesa' && (t.categoria === 'Accantonamenti' || t.nome.startsWith('Accantonamento:'));
+}
+
+/**
+ * Checks if a transaction represents a withdrawal from a sinking fund
+ */
+export function isSinkingFundWithdrawal(t: Transaction): boolean {
+  return t.tipo === 'Entrata' && (t.categoria === 'Accantonamenti' || t.nome.startsWith('Prelievo:'));
+}
 
 export type SinkingFundBadgeStatus = 'Completed' | 'On Track' | 'Behind';
 

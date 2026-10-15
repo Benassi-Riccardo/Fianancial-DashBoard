@@ -2,8 +2,8 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { useFinanceStore } from '@/store/useFinanceStore';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLine, Legend } from 'recharts';
-import { getMonthlyCommitment } from '@/lib/sinkingFunds';
-import { Target, AlertCircle, ArrowUpRight } from 'lucide-react';
+import { getMonthlyCommitment, isSinkingFundDeposit } from '@/lib/sinkingFunds';
+import { Target, AlertCircle, ArrowUpRight, PiggyBank, CheckCircle2 } from 'lucide-react';
 
 export function BudgetChart() {
   const { transactions, settings, sinkingFunds, selectedMonth, selectedYear, setActiveTab } = useFinanceStore();
@@ -11,14 +11,23 @@ export function BudgetChart() {
   const currentMonth = selectedMonth;
   const currentYear = selectedYear;
 
-  const usciteMese = transactions
+  // General operational expenses excluding sinking fund deposits (so deposits aren't double-counted)
+  const generalExpenses = transactions
     .filter(t => {
       const d = new Date(t.data);
-      return t.tipo === 'Spesa' && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      return t.tipo === 'Spesa' && !isSinkingFundDeposit(t) && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     })
     .reduce((acc, t) => acc + t.importo, 0);
 
-  // Active sinking funds commitments for the current month
+  // Sinking fund deposits fulfilled during the current selected calendar month
+  const monthlyDeposited = transactions
+    .filter(t => {
+      const d = new Date(t.data);
+      return isSinkingFundDeposit(t) && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    })
+    .reduce((acc, t) => acc + t.importo, 0);
+
+  // Active sinking funds planned commitments for the current month
   const activeSinkingFunds = sinkingFunds.filter(
     (f) => Math.max(0, (f.risparmioMensile || 0) - (f.spese || 0)) < f.obiettivo
   );
@@ -28,17 +37,18 @@ export function BudgetChart() {
   );
 
   const budget = settings.budgetMensile || 1500;
-  const totaleImpegnato = usciteMese + sinkingCommitment;
+  // Sinking fund deposits fulfill the planned commitment rather than adding an extra expense to the budget
+  const totaleImpegnato = generalExpenses + sinkingCommitment;
   const residuoDisponibile = budget - totaleImpegnato;
   
-  const percentageSpese = Math.min((usciteMese / budget) * 100, 100);
+  const percentageSpese = Math.min((generalExpenses / budget) * 100, 100);
   const percentageSinking = Math.min((sinkingCommitment / budget) * 100, Math.max(0, 100 - percentageSpese));
   const percentageTotale = (totaleImpegnato / budget) * 100;
 
   const data = [
     {
       name: 'Riepilogo Mese',
-      Spese: Number(usciteMese.toFixed(2)),
+      Spese: Number(generalExpenses.toFixed(2)),
       'Sinking Funds': Number(sinkingCommitment.toFixed(2)),
       budget: budget
     }
@@ -67,11 +77,16 @@ export function BudgetChart() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-center">
           <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
             <p className="text-[11px] font-medium text-slate-500">Spese Mese</p>
-            <p className="text-sm font-bold text-rose-600">€{usciteMese.toFixed(2)}</p>
+            <p className="text-sm font-bold text-rose-600">€{generalExpenses.toFixed(2)}</p>
           </div>
-          <div className="p-2.5 rounded-xl bg-sky-50/60 border border-sky-100">
-            <p className="text-[11px] font-medium text-sky-700">Sinking Funds</p>
-            <p className="text-sm font-bold text-sky-600">+€{sinkingCommitment.toFixed(2)}</p>
+          <div className="p-2.5 rounded-xl bg-sky-50/60 border border-sky-100 flex flex-col justify-between">
+            <div>
+              <p className="text-[11px] font-medium text-sky-700">Sinking Funds</p>
+              <p className="text-sm font-bold text-sky-600">+€{sinkingCommitment.toFixed(2)}</p>
+            </div>
+            <p className="text-[10px] text-sky-800 font-medium mt-1 truncate" title={`€${monthlyDeposited.toFixed(2)} / €${sinkingCommitment.toFixed(2)} depositati`}>
+              €{monthlyDeposited.toFixed(2)} depositati
+            </p>
           </div>
           <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
             <p className="text-[11px] font-medium text-slate-500">Budget Totale</p>
@@ -80,6 +95,35 @@ export function BudgetChart() {
           <div className={`p-2.5 rounded-xl border ${residuoDisponibile >= 0 ? 'bg-emerald-50/60 border-emerald-100 text-emerald-700' : 'bg-rose-50 border-rose-100 text-rose-700'}`}>
             <p className="text-[11px] font-medium">{residuoDisponibile >= 0 ? 'Residuo Libero' : 'Sforamento'}</p>
             <p className="text-sm font-bold">€{Math.abs(residuoDisponibile).toFixed(2)}</p>
+          </div>
+        </div>
+
+        {/* Monthly Sinking Fund Fulfillment Status */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-xl bg-sky-50/70 border border-sky-100 text-xs">
+          <div className="flex items-center gap-2">
+            <PiggyBank size={16} className="text-sky-600 shrink-0" />
+            <span className="font-semibold text-slate-700">Versamenti Sinking Funds:</span>
+            <span className="text-slate-600">
+              <strong className="text-sky-700 font-bold">€{monthlyDeposited.toFixed(2)}</strong> / €{sinkingCommitment.toFixed(2)} depositati questo mese
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-28 h-2 bg-sky-200/60 rounded-full overflow-hidden">
+              <div 
+                className={`h-full transition-all duration-500 ${
+                  monthlyDeposited >= sinkingCommitment && sinkingCommitment > 0 ? 'bg-emerald-500' : 'bg-sky-500'
+                }`}
+                style={{ width: `${Math.min(100, sinkingCommitment > 0 ? (monthlyDeposited / sinkingCommitment) * 100 : (monthlyDeposited > 0 ? 100 : 0))}%` }}
+              />
+            </div>
+            <span className={`text-[11px] font-bold ${
+              monthlyDeposited >= sinkingCommitment && sinkingCommitment > 0 ? 'text-emerald-700' : 'text-sky-700'
+            }`}>
+              {sinkingCommitment > 0 ? `${Math.round((monthlyDeposited / sinkingCommitment) * 100)}%` : (monthlyDeposited > 0 ? '100%' : '0%')}
+            </span>
+            {monthlyDeposited >= sinkingCommitment && sinkingCommitment > 0 && (
+              <CheckCircle2 size={13} className="text-emerald-600" />
+            )}
           </div>
         </div>
 
@@ -97,7 +141,7 @@ export function BudgetChart() {
             <div 
               className="h-full bg-rose-500 transition-all duration-500"
               style={{ width: `${percentageSpese}%` }}
-              title={`Spese: €${usciteMese.toFixed(2)}`}
+              title={`Spese: €${generalExpenses.toFixed(2)}`}
             />
             {/* Sinking funds portion */}
             <div 
