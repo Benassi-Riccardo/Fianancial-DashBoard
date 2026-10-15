@@ -91,8 +91,7 @@ function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => voi
 import { useAuthStore } from '@/store/useAuthStore';
 
 export function AppLayout() {
-  const [currentTab, setCurrentTab] = useState<TabId>('dashboard');
-  const { isLoading: isFinanceLoading, error, fetchDashboardData, resetFinanceData, clearError } = useFinanceStore();
+  const { activeTab, setActiveTab, isLoading: isFinanceLoading, error, fetchDashboardData, resetFinanceData, clearError } = useFinanceStore();
   const { user, isAuthenticated, checkSession, isLoading: isAuthLoading } = useAuthStore();
 
   useEffect(() => {
@@ -116,7 +115,7 @@ export function AppLayout() {
       return <SkeletonLoader />;
     }
 
-    switch (currentTab) {
+    switch (activeTab) {
       case 'dashboard':
         return <DashboardPage />;
       case 'annual':
@@ -136,7 +135,7 @@ export function AppLayout() {
 
   return (
     <div className="flex min-h-screen bg-blue-50 text-slate-900 selection:bg-sky-500/30">
-      <Sidebar currentTab={currentTab} onTabChange={setCurrentTab} />
+      <Sidebar currentTab={activeTab} onTabChange={setActiveTab} />
       <main className="flex-1 overflow-y-auto">
         {error && <ErrorBanner message={error} onRetry={handleRetry} />}
         {renderContent()}

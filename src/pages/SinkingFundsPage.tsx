@@ -37,6 +37,7 @@ export default function SinkingFundsPage() {
   const [selectedFundForAction, setSelectedFundForAction] = useState<SinkingFund | null>(null);
   const [actionType, setActionType] = useState<'deposit' | 'withdraw'>('deposit');
   const [actionAmount, setActionAmount] = useState<string>('');
+  const [actionNote, setActionNote] = useState<string>('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
@@ -60,12 +61,14 @@ export default function SinkingFundsPage() {
     setSelectedFundForAction(fund);
     setActionType(type);
     setActionAmount('');
+    setActionNote('');
     setActionError(null);
   };
 
   const handleCloseActionModal = () => {
     setSelectedFundForAction(null);
     setActionAmount('');
+    setActionNote('');
     setActionError(null);
   };
 
@@ -95,6 +98,7 @@ export default function SinkingFundsPage() {
       await transactSinkingFund(selectedFundForAction.id, {
         type: actionType,
         amount: amountVal,
+        note: actionNote.trim() || undefined,
       });
       handleCloseActionModal();
     } catch (err: any) {
@@ -601,6 +605,26 @@ export default function SinkingFundsPage() {
                   </strong>
                 </div>
               )}
+
+              {/* Optional Note / Description Field */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Nota / Causale <span className="text-slate-400 font-normal lowercase">(opzionale)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder={actionType === 'deposit' ? 'Es. Versamento mensile, Quota extra' : 'Es. Acquisto pneumatici, Spesa tagliando'}
+                  value={actionNote}
+                  onChange={(e) => setActionNote(e.target.value)}
+                  className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500 text-sm"
+                />
+                <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                  <span>ℹ️</span>
+                  <span>
+                    Verrà sincronizzata una transazione in <strong>{actionType === 'deposit' ? 'Uscite (Spesa)' : 'Entrate'}</strong> (categoria <em>Accantonamenti</em>).
+                  </span>
+                </p>
+              </div>
 
               <div className="pt-2 flex justify-end space-x-3">
                 <button

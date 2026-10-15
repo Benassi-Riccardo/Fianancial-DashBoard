@@ -3,10 +3,10 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { useFinanceStore } from '@/store/useFinanceStore';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLine, Legend } from 'recharts';
 import { getMonthlyCommitment } from '@/lib/sinkingFunds';
-import { Target, AlertCircle } from 'lucide-react';
+import { Target, AlertCircle, ArrowUpRight } from 'lucide-react';
 
 export function BudgetChart() {
-  const { transactions, settings, sinkingFunds, selectedMonth, selectedYear } = useFinanceStore();
+  const { transactions, settings, sinkingFunds, selectedMonth, selectedYear, setActiveTab } = useFinanceStore();
 
   const currentMonth = selectedMonth;
   const currentYear = selectedYear;
@@ -49,10 +49,16 @@ export function BudgetChart() {
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <CardTitle>Avanzamento Budget & Cash Flow</CardTitle>
         {activeSinkingFunds.length > 0 && (
-          <span className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
-            <Target size={13} />
-            <span>{activeSinkingFunds.length} fondi attivi</span>
-          </span>
+          <button
+            type="button"
+            onClick={() => setActiveTab('sinking')}
+            title="Vai alla gestione Sinking Funds"
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 hover:border-sky-300 hover:text-sky-900 transition-all duration-150 cursor-pointer group shadow-xs hover:shadow-sm"
+          >
+            <Target size={13} className="text-sky-600 group-hover:scale-110 transition-transform" />
+            <span>{activeSinkingFunds.length} {activeSinkingFunds.length === 1 ? 'fondo attivo' : 'fondi attivi'}</span>
+            <ArrowUpRight size={12} className="text-sky-500 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+          </button>
         )}
       </CardHeader>
       <CardContent className="flex-1 flex flex-col justify-center space-y-5">

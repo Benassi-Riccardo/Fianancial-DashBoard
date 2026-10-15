@@ -131,7 +131,8 @@ export const DEFAULT_CATEGORIES = [
   { nome: 'Svago', tipo: 'Spesa', emoji: '🎉' },
   { nome: 'Salute', tipo: 'Spesa', emoji: '💊' },
   { nome: 'Shopping', tipo: 'Spesa', emoji: '🛍️' },
-  { nome: 'Risparmio', tipo: 'Risparmio', emoji: '🏦' }
+  { nome: 'Risparmio', tipo: 'Risparmio', emoji: '🏦' },
+  { nome: 'Accantonamenti', tipo: 'Spesa', emoji: '🎯' }
 ];
 
 // --- User Auth Helpers ---
@@ -498,58 +499,101 @@ export async function deleteSinkingFund(userId, fundId) {
   return true;
 }
 
-export async function transactSinkingFund(userId, fundId, { type, amount }) {
+export async function transactSinkingFund(userId, fundId, { type, amount, note = '', date = null }) {
   const uId = String(userId);
   const amt = parseFloat(amount);
   if (isNaN(amt) || amt <= 0) {
     throw new Error('Importo non valido.');
   }
 
+  const cleanNote = note ? String(note).trim() : '';
+  const txDateIso = date ? new Date(date).toISOString() : new Date().toISOString();
+  const txTipo = type === 'deposit' ? 'Spesa' : 'Entrata';
+  const txCategoria = 'Accantonamenti';
+
   if (pool) {
-    const res = await pool.query('SELECT * FROM sinking_funds WHERE id = $1 AND user_id = $2', [fundId, uId]);
-    if (res.rows.length === 0) {
-      throw new Error('Fondo di accantonamento non trovato.');
-    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    const fund = res.rows[0];
-    let risparmio = parseFloat(fund.risparmio_mensile || 0);
-    let spese = parseFloat(fund.spese || 0);
-    const obiettivo = parseFloat(fund.obiettivo);
-
-    if (type === 'deposit') {
-      risparmio += amt;
-    } else if (type === 'withdraw') {
-      const currentBalance = risparmio - spese;
-      if (amt > currentBalance) {
-        throw new Error(`Fondi insufficienti. Saldo disponibile: €${currentBalance.toFixed(2)}`);
+      const res = await client.query('SELECT * FROM sinking_funds WHERE id = $1 AND user_id = $2', [fundId, uId]);
+      if (res.rows.length === 0) {
+        throw new Error('Fondo di accantonamento non trovato.');
       }
-      spese += amt;
-    } else {
-      throw new Error('Tipo operazione non valido.');
+
+      const fund = res.rows[0];
+      let risparmio = parseFloat(fund.risparmio_mensile || 0);
+      let spese = parseFloat(fund.spese || 0);
+      const obiettivo = parseFloat(fund.obiettivo);
+
+      if (type === 'deposit') {
+        risparmio += amt;
+      } else if (type === 'withdraw') {
+        const currentBalance = risparmio - spese;
+        if (amt > currentBalance) {
+          throw new Error(`Fondi insufficienti. Saldo disponibile: €${currentBalance.toFixed(2)}`);
+        }
+        spese += amt;
+      } else {
+        throw new Error('Tipo operazione non valido.');
+      }
+
+      const currentBalance = risparmio - spese;
+      const nuovoStato = currentBalance >= obiettivo ? 'Completata' : 'In corso';
+
+      const updateRes = await client.query(
+        `UPDATE sinking_funds 
+         SET risparmio_mensile = $1, spese = $2, stato = $3 
+         WHERE id = $4 AND user_id = $5 
+         RETURNING *`,
+        [risparmio, spese, nuovoStato, fundId, uId]
+      );
+
+      // Create global transaction
+      const txId = Date.now().toString() + Math.random().toString(36).substring(2, 7);
+      const actionLabel = type === 'deposit' ? 'Accantonamento' : 'Prelievo';
+      const txNome = cleanNote 
+        ? `${actionLabel}: ${fund.attivita} - ${cleanNote}` 
+        : `${actionLabel}: ${fund.attivita}`;
+
+      const txRes = await client.query(
+        `INSERT INTO transactions (id, user_id, nome, categoria, importo, data, tipo)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [txId, uId, txNome, txCategoria, amt, txDateIso, txTipo]
+      );
+
+      await client.query('COMMIT');
+
+      const r = updateRes.rows[0];
+      const t = txRes.rows[0];
+
+      return {
+        fund: {
+          id: r.id,
+          attivita: r.attivita,
+          stato: r.stato,
+          obiettivo: parseFloat(r.obiettivo),
+          risparmioMensile: parseFloat(r.risparmio_mensile || 0),
+          spese: parseFloat(r.spese || 0),
+          dataScadenza: r.data_scadenza ? new Date(r.data_scadenza).toISOString() : '',
+          monthlyAllocation: parseFloat(r.monthly_allocation || 0),
+        },
+        transaction: {
+          id: t.id,
+          nome: t.nome,
+          categoria: t.categoria,
+          importo: parseFloat(t.importo),
+          data: t.data,
+          tipo: t.tipo
+        }
+      };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-
-    const currentBalance = risparmio - spese;
-    const nuovoStato = currentBalance >= obiettivo ? 'Completata' : 'In corso';
-
-    const updateRes = await pool.query(
-      `UPDATE sinking_funds 
-       SET risparmio_mensile = $1, spese = $2, stato = $3 
-       WHERE id = $4 AND user_id = $5 
-       RETURNING *`,
-      [risparmio, spese, nuovoStato, fundId, uId]
-    );
-
-    const r = updateRes.rows[0];
-    return {
-      id: r.id,
-      attivita: r.attivita,
-      stato: r.stato,
-      obiettivo: parseFloat(r.obiettivo),
-      risparmioMensile: parseFloat(r.risparmio_mensile || 0),
-      spese: parseFloat(r.spese || 0),
-      dataScadenza: r.data_scadenza ? new Date(r.data_scadenza).toISOString() : '',
-      monthlyAllocation: parseFloat(r.monthly_allocation || 0),
-    };
   }
 
   ensureFallbackStorage();
@@ -585,8 +629,33 @@ export async function transactSinkingFund(userId, fundId, { type, amount }) {
   fund.spese = spese;
   fund.stato = (risparmio - spese) >= obiettivo ? 'Completata' : 'In corso';
 
+  // Create global transaction in fallback storage
+  const txId = Date.now().toString() + Math.random().toString(36).substring(2, 7);
+  const actionLabel = type === 'deposit' ? 'Accantonamento' : 'Prelievo';
+  const txNome = cleanNote 
+    ? `${actionLabel}: ${fund.attivita} - ${cleanNote}` 
+    : `${actionLabel}: ${fund.attivita}`;
+
+  const newTx = {
+    id: txId,
+    nome: txNome,
+    categoria: txCategoria,
+    importo: amt,
+    data: txDateIso,
+    tipo: txTipo
+  };
+
+  if (!allData[uId].transactions) {
+    allData[uId].transactions = [];
+  }
+  allData[uId].transactions.unshift(newTx);
+
   fs.writeFileSync(DATA_FILE, JSON.stringify(allData, null, 2), 'utf-8');
-  return fund;
+
+  return {
+    fund,
+    transaction: newTx
+  };
 }
 
 export async function bulkInsertUserData(userId, { transactions = [], sinkingFunds = [], assets = [], debts = [], settings = null }) {

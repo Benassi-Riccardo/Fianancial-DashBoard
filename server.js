@@ -655,24 +655,31 @@ sinkingFundRouter.delete('/:id', requireAuth, async (req, res) => {
   }
 });
 
-// POST deposit or withdraw from sinking fund
-sinkingFundRouter.post('/:id/action', requireAuth, async (req, res) => {
+// POST deposit or withdraw from sinking fund (with automatic transaction sync)
+const handleSinkingFundTransaction = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    const { type, amount } = req.body;
+    const { type, amount, note, date } = req.body;
 
     if (!type || amount === undefined) {
       return res.status(400).json({ error: 'Tipo operazione e importo sono obbligatori.' });
     }
 
-    const updatedFund = await transactSinkingFund(userId, id, { type, amount });
-    res.json({ success: true, fund: updatedFund });
+    const result = await transactSinkingFund(userId, id, { type, amount, note, date });
+    res.json({ 
+      success: true, 
+      fund: result.fund, 
+      transaction: result.transaction 
+    });
   } catch (err) {
     console.error('❌ Error updating sinking fund balance:', err.message);
     res.status(400).json({ error: err.message });
   }
-});
+};
+
+sinkingFundRouter.post('/:id/action', requireAuth, handleSinkingFundTransaction);
+sinkingFundRouter.post('/:id/transaction', requireAuth, handleSinkingFundTransaction);
 
 // Mount on multiple path variants to guarantee compatibility across proxy/URL setups
 app.use('/api/sinking-funds', sinkingFundRouter);

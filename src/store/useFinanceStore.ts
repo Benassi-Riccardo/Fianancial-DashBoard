@@ -1,5 +1,7 @@
 import { create } from 'zustand';
-import { Transaction, SinkingFund, Asset, Debt, Settings } from '../types/finance';
+import { Transaction, SinkingFund, Asset, Debt, Settings, TabId } from '../types/finance';
+
+export type { TabId };
 
 // KPI data coming from Google Sheets
 export interface KpiData {
@@ -22,6 +24,7 @@ interface FinanceState {
   budgetData: BudgetData;
 
   // State
+  activeTab: TabId;
   selectedMonth: number;
   selectedYear: number;
 
@@ -30,6 +33,7 @@ interface FinanceState {
   error: string | null;
 
   // Actions
+  setActiveTab: (tab: TabId) => void;
   addTransaction: (tx: Omit<Transaction, 'id'>) => void;
   createTransaction: (tx: Omit<Transaction, 'id'>) => Promise<void>;
   deleteTransaction: (id: string) => void;
@@ -39,7 +43,7 @@ interface FinanceState {
   updateSettings: (newSettings: Settings) => Promise<void>;
   createSinkingFund: (fund: { attivita: string; obiettivo: number; dataScadenza?: string; monthlyAllocation?: number; initialDeposit?: number }) => Promise<void>;
   deleteSinkingFund: (id: string) => Promise<void>;
-  transactSinkingFund: (id: string, action: { type: 'deposit' | 'withdraw'; amount: number }) => Promise<void>;
+  transactSinkingFund: (id: string, action: { type: 'deposit' | 'withdraw'; amount: number; note?: string; date?: string }) => Promise<void>;
   resetFinanceData: () => void;
   clearError: () => void;
 }
@@ -53,6 +57,7 @@ const FALLBACK_SETTINGS: Settings = {
     { nome: 'Casa', tipo: 'Spesa', emoji: '🏠' },
     { nome: 'Cibo/Spesa', tipo: 'Spesa', emoji: '🛒' },
     { nome: 'Abbonamenti', tipo: 'Spesa', emoji: '📺' },
+    { nome: 'Accantonamenti', tipo: 'Spesa', emoji: '🎯' },
   ]
 };
 
@@ -67,10 +72,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   settings: FALLBACK_SETTINGS,
   kpis: {},
   budgetData: { speso: 0, budget: 1500 },
+  activeTab: 'dashboard',
   selectedMonth: new Date().getMonth(),
   selectedYear: new Date().getFullYear(),
   isLoading: true,
   error: null,
+
+  setActiveTab: (tab) => set({ activeTab: tab }),
 
   addTransaction: (tx) => set((state) => ({
     transactions: [{ ...tx, id: Math.random().toString(36).substring(7) }, ...state.transactions]

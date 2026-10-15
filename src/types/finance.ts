@@ -48,3 +48,6 @@ export interface Settings {
   categorie: ConfigCategory[];
   budgetMensile: number;
 }
+
+export type TabId = 'dashboard' | 'annual' | 'sinking' | 'networth' | 'transactions' | 'settings';
+
