@@ -1,5 +1,4 @@
 import React from 'react';
-import { useAuthStore } from '@/store/useAuthStore';
 import { useFinanceStore } from '@/store/useFinanceStore';
 import { cn } from '@/lib/utils';
 import fullLogo from '@/FinanceFlow-Full-Logo.jpg';
@@ -10,8 +9,7 @@ import {
   Target, 
   PieChart, 
   Receipt, 
-  Settings, 
-  LogOut 
+  Settings
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -28,17 +26,10 @@ const TAB_TITLES: Record<string, { label: string; icon: React.ElementType }> = {
 };
 
 export function Header({ isScrolled }: HeaderProps) {
-  const { user, logout } = useAuthStore();
   const { activeTab } = useFinanceStore();
 
   const currentTabInfo = TAB_TITLES[activeTab] || TAB_TITLES.dashboard;
   const CurrentIcon = currentTabInfo.icon;
-
-  const initials = user?.name
-    ? user.name.slice(0, 2).toUpperCase()
-    : user?.email
-    ? user.email.slice(0, 2).toUpperCase()
-    : 'FF';
 
   return (
     <header 
@@ -98,33 +89,9 @@ export function Header({ isScrolled }: HeaderProps) {
           <span>{currentTabInfo.label}</span>
         </div>
 
-        {/* Right: User Profile & Quick Actions */}
+        {/* Right: Reserved clean space for future global actions / notifications */}
         <div className="flex items-center gap-3">
-          {user && (
-            <div className="flex items-center gap-2.5 pl-2 py-1 pr-1.5 rounded-full bg-slate-50/80 border border-slate-100">
-              {user.picture ? (
-                <img 
-                  src={user.picture} 
-                  alt={user.name || 'User'} 
-                  className="w-7 h-7 rounded-full object-cover border border-sky-200" 
-                />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-sky-500 to-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-xs">
-                  {initials}
-                </div>
-              )}
-              <span className="text-xs font-medium text-slate-700 hidden lg:inline max-w-[120px] truncate">
-                {user.name || user.email}
-              </span>
-              <button
-                onClick={logout}
-                title="Disconnetti"
-                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors cursor-pointer"
-              >
-                <LogOut size={14} />
-              </button>
-            </div>
-          )}
+          {/* Clean space intentionally left open for notifications / quick actions */}
         </div>
 
       </div>
